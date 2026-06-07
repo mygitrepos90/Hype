@@ -277,7 +277,12 @@ const CFG = {
   insta:    '@hype.shoes',
   telegram: 'https://t.me/HypeShoes',
   whatsapp: '91XXXXXXXXXX',
-  razorpay: 'YOUR_RAZORPAY_KEY_ID',
+  // ── PAYMENT CONFIG ──
+  // Set payMode to 'upi' or 'razorpay'
+  payMode:  'upi',
+  upiId:    '8800923605@ybl',        // ← CHANGE THIS to your UPI ID
+  upiName:  'HYPE Footwear',       // ← Your name as it appears on UPI
+  razorpay: 'YOUR_RAZORPAY_KEY_ID',// ← Add Razorpay key here when ready
   supaUrl:  'https://qtjtesctcvkrathlffpn.supabase.co',
   supaKey:  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF0anRlc2N0Y3ZrcmF0aGxmZnBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NDY3MzIsImV4cCI6MjA5NjQyMjczMn0.5c7_uD-cPpgzmJaHXBwFLHMcHeBubHf0VkKcYbCBF9c',
 };
@@ -489,8 +494,30 @@ const CFG = {
     <div class="fr"><div class="fg"><label>City *</label><input type="text" id="ct" placeholder="Mumbai"></div><div class="fg"><label>Pincode *</label><input type="text" id="pc" placeholder="400001" maxlength="6"></div></div>
     <div class="fg"><label>State *</label><select id="st"><option value="">Select State</option><option>Andhra Pradesh</option><option>Arunachal Pradesh</option><option>Assam</option><option>Bihar</option><option>Chhattisgarh</option><option>Delhi</option><option>Goa</option><option>Gujarat</option><option>Haryana</option><option>Himachal Pradesh</option><option>Jharkhand</option><option>Jammu &amp; Kashmir</option><option>Karnataka</option><option>Kerala</option><option>Madhya Pradesh</option><option>Maharashtra</option><option>Manipur</option><option>Meghalaya</option><option>Mizoram</option><option>Nagaland</option><option>Odisha</option><option>Punjab</option><option>Rajasthan</option><option>Sikkim</option><option>Tamil Nadu</option><option>Telangana</option><option>Tripura</option><option>Uttar Pradesh</option><option>Uttarakhand</option><option>West Bengal</option></select></div>
     <div class="co-tot"><span class="co-tl">Order Total</span><span class="co-tv" id="coTot">₹0</span></div>
-    <button class="btn-pay" onclick="doPay()">🔒 Pay Securely via Razorpay</button>
+    <button class="btn-pay" onclick="doPay()" id="payBtn">🔒 Pay via UPI</button>
   </div>
+</div></div>
+
+<!-- UPI PAYMENT MODAL -->
+<div class="mo" id="upiMo"><div class="mb" style="max-width:420px;text-align:center">
+  <div class="mb-hd"><div class="mb-pnm">PAY VIA UPI</div><button class="btnx" onclick="upiClose()">✕</button></div>
+  <div style="background:var(--bg3);border:1px solid var(--bd);padding:1.5rem;margin-bottom:1.2rem">
+    <div style="font-size:.62rem;letter-spacing:2px;text-transform:uppercase;color:var(--mu);margin-bottom:.5rem">Order Total</div>
+    <div style="font-family:'Anton',sans-serif;font-size:2.5rem;color:var(--ac);letter-spacing:2px" id="upiAmt">₹0</div>
+  </div>
+  <div style="margin-bottom:1.2rem">
+    <div style="font-size:.62rem;letter-spacing:2px;text-transform:uppercase;color:var(--mu);margin-bottom:.5rem">Pay to UPI ID</div>
+    <div style="font-family:'DM Sans',sans-serif;font-weight:700;font-size:1.1rem;color:var(--wh);background:var(--bg3);border:1px solid var(--bd);padding:.8rem;letter-spacing:1px" id="upiIdDisplay">-</div>
+  </div>
+  <div style="margin-bottom:1.5rem">
+    <div style="font-size:.62rem;letter-spacing:2px;text-transform:uppercase;color:var(--mu);margin-bottom:.8rem">Or scan QR code</div>
+    <img id="upiQR" src="" alt="UPI QR" style="width:180px;height:180px;border:1px solid var(--bd);display:block;margin:0 auto;background:white">
+  </div>
+  <div style="font-size:.72rem;color:var(--mu);line-height:1.7;margin-bottom:1.2rem">
+    Open GPay, PhonePe, Paytm or any UPI app → Pay to the UPI ID above → Once paid, click confirm below
+  </div>
+  <button class="btn-pay" onclick="confirmUpi()" style="margin-bottom:.7rem">✅ I have paid — Confirm Order</button>
+  <div style="font-size:.65rem;color:var(--mu)">Your order will be confirmed and dispatched after payment verification</div>
 </div></div>
 
 <!-- SUCCESS MODAL -->
@@ -630,20 +657,38 @@ function doPay(){
   if(!/^\d{10}$/.test(ph)){alert('Enter a valid 10-digit phone number');return;}
   if(!/^\d{6}$/.test(pc)){alert('Enter a valid 6-digit pincode');return;}
   const total=cart.reduce((s,i)=>s+i.price*i.qty,0);
-  const order={customer_name:fn+' '+ln,phone:ph,email:document.getElementById('em').value,address:ad+', '+ct+', '+st+' - '+pc,items:JSON.stringify(cart),total_amount:total,payment_status:'pending',order_status:'new',created_at:new Date().toISOString()};
+  window._pendingOrder={customer_name:fn+' '+ln,phone:ph,email:document.getElementById('em').value,address:ad+', '+ct+', '+st+' - '+pc,items:JSON.stringify(cart),total_amount:total,payment_status:'pending',order_status:'new',created_at:new Date().toISOString()};
 
-  if(CFG.razorpay==='YOUR_RAZORPAY_KEY_ID'){
-    // Demo mode — simulate success
-    order.payment_status='demo_paid';
-    saveOrder(order);return;
+  if(CFG.payMode==='razorpay' && CFG.razorpay!=='YOUR_RAZORPAY_KEY_ID'){
+    // ── RAZORPAY ──
+    const options={key:CFG.razorpay,amount:total*100,currency:'INR',name:'HYPE',description:'Footwear Order',prefill:{name:fn+' '+ln,contact:ph,email:document.getElementById('em').value},theme:{color:'#c8ff00'},handler:function(r){window._pendingOrder.payment_id=r.razorpay_payment_id;window._pendingOrder.payment_status='paid';saveOrder(window._pendingOrder);}};
+    new Razorpay(options).open();
+  } else {
+    // ── UPI ──
+    coClose();
+    document.getElementById('upiAmt').textContent='₹'+total.toLocaleString('en-IN');
+    document.getElementById('upiIdDisplay').textContent=CFG.upiId;
+    // Generate UPI QR
+    const upiLink=`upi://pay?pa=${encodeURIComponent(CFG.upiId)}&pn=${encodeURIComponent(CFG.upiName)}&am=${total}&cu=INR&tn=HYPE-Order`;
+    document.getElementById('upiQR').src=`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(upiLink)}`;
+    document.getElementById('upiMo').classList.add('show');
   }
-  const options={key:CFG.razorpay,amount:total*100,currency:'INR',name:'HYPE',description:'Footwear Order',prefill:{name:fn+' '+ln,contact:ph,email:document.getElementById('em').value},theme:{color:'#c8ff00'},handler:function(r){order.payment_id=r.razorpay_payment_id;order.payment_status='paid';saveOrder(order);}};
-  new Razorpay(options).open();
+}
+
+function upiClose(){document.getElementById('upiMo').classList.remove('show');}
+
+function confirmUpi(){
+  if(window._pendingOrder){
+    window._pendingOrder.payment_status='upi_pending_verification';
+    saveOrder(window._pendingOrder);
+  }
+  upiClose();
 }
 
 async function saveOrder(od){
   if(supa){try{await supa.from('orders').insert([od]);}catch(e){console.log('Save error',e);}}
-  cart=[];saveCart();coClose();document.getElementById('sucMo').classList.add('show');
+  cart=[];saveCart();coClose();upiClose();
+  document.getElementById('sucMo').classList.add('show');
 }
 function sucClose(){document.getElementById('sucMo').classList.remove('show');}
 
@@ -712,6 +757,7 @@ document.getElementById('fWa').href='https://wa.me/'+CFG.whatsapp;
 
 // ══ INIT ══
 document.getElementById('musicBtn').textContent = '🎵';
+document.getElementById('payBtn').textContent = CFG.payMode==='razorpay' ? '🔒 Pay Securely via Razorpay' : '🔒 Pay via UPI';
 renderProds();
 renderCart();
 </script>
