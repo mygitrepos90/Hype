@@ -607,6 +607,7 @@ function startMusic(){
     const btn = document.getElementById('musicBtn');
     btn.classList.add('playing');
     btn.textContent = '🔊';
+    fadeVolume(0, 0.28, 1800);
   }).catch(()=>{});
 }
 
