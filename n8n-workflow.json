@@ -1,0 +1,138 @@
+{
+  "name": "HYPE — Order Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hype-new-order",
+        "responseMode": "onReceived",
+        "responseData": "allEntries"
+      },
+      "id": "webhook-trigger",
+      "name": "New Order Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [240, 300],
+      "notes": "This receives order data from Supabase webhook. In Supabase: Database → Webhooks → Create new → Table: orders → Event: INSERT → URL: your-n8n-url/webhook/hype-new-order"
+    },
+    {
+      "parameters": {
+        "jsCode": "const order = $input.first().json;\nconst items = JSON.parse(order.items || '[]');\nconst itemList = items.map(i => `• ${i.name} | Size UK${i.sz} | Qty: ${i.qty} | ₹${(i.price*i.qty).toLocaleString('en-IN')}`).join('\\n');\n\nreturn [{\n  json: {\n    ...order,\n    items_formatted: itemList,\n    order_date: new Date(order.created_at).toLocaleString('en-IN', {timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'}),\n    total_formatted: '₹' + order.total_amount.toLocaleString('en-IN'),\n    telegram_message: `🛍️ *NEW ORDER — HYPE*\\n\\n👤 *Customer:* ${order.customer_name}\\n📱 *Phone:* ${order.phone}\\n📧 *Email:* ${order.email || 'N/A'}\\n\\n📦 *Items:*\\n${itemList}\\n\\n💰 *Total: ₹${order.total_amount.toLocaleString('en-IN')}*\\n💳 *Payment:* ${order.payment_status.toUpperCase()}\\n\\n🏠 *Delivery Address:*\\n${order.address}\\n\\n🕐 *Time:* ${new Date(order.created_at).toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'})}\\n\\n#Order${order.id}`\n  }\n}];"
+      },
+      "id": "format-order",
+      "name": "Format Order Data",
+      "type": "n8n-nodes-base.code",
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "={{ $json.telegram_message }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-notify",
+      "name": "Telegram — Notify Owner",
+      "type": "n8n-nodes-base.telegram",
+      "position": [680, 200],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-creds",
+          "name": "Telegram Bot"
+        }
+      },
+      "notes": "Setup: 1) Create bot via @BotFather on Telegram 2) Get your chat ID by messaging @userinfobot 3) Add bot credentials in n8n"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "YOUR_GOOGLE_SHEET_ID",
+        "sheetName": "Orders",
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {
+            "Order ID": "={{ $json.id }}",
+            "Date": "={{ $json.order_date }}",
+            "Customer Name": "={{ $json.customer_name }}",
+            "Phone": "={{ $json.phone }}",
+            "Email": "={{ $json.email }}",
+            "Items": "={{ $json.items_formatted }}",
+            "Total Amount": "={{ $json.total_formatted }}",
+            "Payment Status": "={{ $json.payment_status }}",
+            "Order Status": "={{ $json.order_status }}",
+            "Delivery Address": "={{ $json.address }}",
+            "Payment ID": "={{ $json.payment_id }}"
+          }
+        }
+      },
+      "id": "google-sheet",
+      "name": "Google Sheet — Log Order",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [680, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-creds",
+          "name": "Google Sheets"
+        }
+      },
+      "notes": "Create a Google Sheet with columns: Order ID, Date, Customer Name, Phone, Email, Items, Total Amount, Payment Status, Order Status, Delivery Address, Payment ID"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.payment_status }}",
+              "operation": "equal",
+              "value2": "paid"
+            }
+          ]
+        }
+      },
+      "id": "check-paid",
+      "name": "Check If Paid",
+      "type": "n8n-nodes-base.if",
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "={{ `✅ *PAYMENT CONFIRMED*\\n\\nOrder #${$json.id} from ${$json.customer_name} is PAID\\n💰 Amount: ${$json.total_formatted}\\n📱 Phone: ${$json.phone}\\n\\n⚡ Ready to dispatch!` }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-paid",
+      "name": "Telegram — Payment Confirmed",
+      "type": "n8n-nodes-base.telegram",
+      "position": [1120, 200],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-creds",
+          "name": "Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "New Order Webhook": {
+      "main": [[{"node": "Format Order Data", "type": "main", "index": 0}]]
+    },
+    "Format Order Data": {
+      "main": [
+        [{"node": "Telegram — Notify Owner", "type": "main", "index": 0}],
+        [{"node": "Google Sheet — Log Order", "type": "main", "index": 0}],
+        [{"node": "Check If Paid", "type": "main", "index": 0}]
+      ]
+    },
+    "Check If Paid": {
+      "main": [[{"node": "Telegram — Payment Confirmed", "type": "main", "index": 0}]]
+    }
+  },
+  "_setup_instructions": {
+    "step1_supabase_webhook": "In Supabase → Database → Webhooks → Create New: Table=orders, Events=INSERT, URL=https://your-n8n.com/webhook/hype-new-order",
+    "step2_telegram_bot": "Message @BotFather on Telegram → /newbot → get your Bot Token → Add to n8n Credentials → Then message your bot and check https://api.telegram.org/botYOUR_TOKEN/getUpdates to get your chat_id",
+    "step3_google_sheets": "Create a new Google Sheet → Add columns (Order ID, Date, Customer Name, Phone, Email, Items, Total Amount, Payment Status, Order Status, Delivery Address, Payment ID) → Copy Sheet ID from URL → Add Google OAuth credentials in n8n",
+    "step4_import": "In n8n → Workflows → Import → paste this JSON → Update YOUR_TELEGRAM_CHAT_ID and YOUR_GOOGLE_SHEET_ID → Activate workflow"
+  }
+}
