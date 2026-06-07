@@ -589,36 +589,33 @@ async function saveProduct(){
   const cat=document.getElementById('pCat').value;
   const price=+document.getElementById('pPrice').value;
   const desc=document.getElementById('pDesc').value.trim();
-  if(!name||!cat||!price||!desc){ alert('Please fill Product Name, Category, Price and Description.'); return; }
+  if(!name||!cat||!price||!desc){alert('Please fill Product Name, Category, Price and Description.');return;}
   const sizes=Array.from(document.querySelectorAll('.szck:checked')).map(c=>+c.value);
   const mrp=+document.getElementById('pMrp').value||null;
   const badge=document.getElementById('pBadge').value.trim()||null;
   const video=document.getElementById('pVideo').value.trim()||null;
   const stock=document.getElementById('pStock').value==='true';
-  const imgUrl=uploadedImgUrls[0]||'assets/shoe1.jpg';
 
-  const prod={name,category:cat,price,mrp,description:desc,sizes,badge,video_url:video,in_stock:stock,image_url:imgUrl};
+  // Support multiple images
+  const imgUrls = uploadedImgUrls.length ? uploadedImgUrls : ['assets/shoe1.jpg'];
+  const imgUrl = imgUrls[0];
+
+  const prod={
+    name,category:cat,price,mrp,description:desc,sizes,badge,
+    video_url:video,in_stock:stock,
+    image_url:imgUrl,
+    image_urls:imgUrls
+  };
 
   if(supa){
     let res;
     if(editingId) res=await supa.from('products').update(prod).eq('id',editingId);
     else res=await supa.from('products').insert([prod]);
-    if(res.error){ document.getElementById('saveFail').style.display='block'; return; }
-    // Upload image to Supabase Storage if base64
-    if(imgUrl.startsWith('data:') && supa){
-      try{
-        const file=dataURLtoFile(imgUrl,'product-'+Date.now()+'.jpg');
-        const{data}=await supa.storage.from('products').upload('images/'+file.name,file,{upsert:true});
-        if(data){
-          const{data:pub}=supa.storage.from('products').getPublicUrl(data.path);
-          await supa.from('products').update({image_url:pub.publicUrl}).eq('name',name);
-        }
-      }catch(e){console.log('Image upload error',e);}
-    }
+    if(res.error){document.getElementById('saveFail').style.display='block';console.log(res.error);return;}
   }
 
   document.getElementById('saveOk').style.display='block';
-  setTimeout(()=>{ closeProdForm(); loadProducts(); },1500);
+  setTimeout(()=>{closeProdForm();loadProducts();},1500);
 }
 
 function dataURLtoFile(dataurl,filename){

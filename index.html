@@ -236,6 +236,15 @@ footer{background:#060606;padding:3rem}
 .music-btn.playing{border-color:var(--ac);animation:pulse 2.5s ease-in-out infinite}
 @keyframes pulse{0%,100%{box-shadow:0 0 10px rgba(200,255,0,.2)}50%{box-shadow:0 0 22px rgba(200,255,0,.45)}}
 
+/* CAROUSEL */
+.car-btn{position:absolute;top:50%;transform:translateY(-50%);z-index:2;background:rgba(10,10,10,.55);color:var(--wh);border:none;width:28px;height:28px;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;line-height:1}
+.pc-img:hover .car-btn{opacity:1}
+.car-prev{left:.4rem}
+.car-next{right:.4rem}
+.car-dots{position:absolute;bottom:.5rem;left:50%;transform:translateX(-50%);display:flex;gap:.3rem;z-index:2}
+.cdot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.4);cursor:pointer;transition:background .2s}
+.cdot.on{background:var(--ac)}
+
 /* ANIMATIONS */
 @keyframes fadeUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
 @keyframes mq{from{transform:translateX(0)}to{transform:translateX(-50%)}}
@@ -492,9 +501,9 @@ const CFG = {
 <script>
 // ══ DEMO PRODUCTS ══
 const DEMO = [
-  {id:'p1',name:'Adidas Carbon Speed',cat:'Sports',price:3499,mrp:4299,desc:'Carbon-infused midsole for max energy return. Lightweight mesh upper. Perfect for daily runs and gym sessions.',sizes:[6,7,8,9,10,11],img:'assets/shoe1.jpg',badge:'Hot',bt:'bh'},
-  {id:'p2',name:'Brooks Velocity Pro',cat:'Sports',price:4299,mrp:null,desc:'Nitrogen-infused cushioning for all-day comfort. Engineered mesh upper. Built for speed and endurance.',sizes:[7,8,9,10,11],img:'assets/shoe2.jpg',badge:'New',bt:'bn'},
-  {id:'p3',name:'Brooks Street Max',cat:'Casual',price:2999,mrp:3599,desc:'Street-ready silhouette meets daily comfort. Thick sole, bold design. Goes with every outfit.',sizes:[6,7,8,9,10,11],img:'assets/shoe3.jpg',badge:null,bt:null},
+  {id:'p1',name:'Adidas Carbon Speed',cat:'Sports',price:3499,mrp:4299,desc:'Carbon-infused midsole for max energy return. Lightweight mesh upper. Perfect for daily runs and gym sessions.',sizes:[6,7,8,9,10,11],imgs:['assets/shoe1.jpg'],badge:'Hot',bt:'bh'},
+  {id:'p2',name:'Brooks Velocity Pro',cat:'Sports',price:4299,mrp:null,desc:'Nitrogen-infused cushioning for all-day comfort. Engineered mesh upper. Built for speed and endurance.',sizes:[7,8,9,10,11],imgs:['assets/shoe2.jpg'],badge:'New',bt:'bn'},
+  {id:'p3',name:'Brooks Street Max',cat:'Casual',price:2999,mrp:3599,desc:'Street-ready silhouette meets daily comfort. Thick sole, bold design. Goes with every outfit.',sizes:[6,7,8,9,10,11],imgs:['assets/shoe3.jpg'],badge:null,bt:null},
 ];
 
 let prods=[...DEMO], cart=JSON.parse(localStorage.getItem('hype_cart')||'[]');
@@ -507,7 +516,15 @@ if(CFG.supaUrl!=='YOUR_SUPABASE_URL'){
   supa=window.supabase.createClient(CFG.supaUrl,CFG.supaKey);
   (async()=>{
     const{data}=await supa.from('products').select('*').eq('in_stock',true).order('created_at',{ascending:false});
-    if(data&&data.length){prods=data.map(p=>({id:p.id,name:p.name,cat:p.category,price:p.price,mrp:p.mrp,desc:p.description,sizes:p.sizes||[],img:p.image_url,badge:p.badge,bt:p.badge_type}));renderProds();}
+    if(data&&data.length){
+      prods=data.map(p=>({
+        id:p.id,name:p.name,cat:p.category,price:p.price,mrp:p.mrp,
+        desc:p.description,sizes:p.sizes||[],
+        imgs:(p.image_urls&&p.image_urls.length)?p.image_urls:(p.image_url?[p.image_url]:['assets/shoe1.jpg']),
+        badge:p.badge,bt:p.badge_type
+      }));
+      renderProds();
+    }
   })();
 }
 
@@ -521,7 +538,45 @@ function renderProds(){
   else if(fS.sort==='desc')list.sort((a,b)=>b.price-a.price);
   const g=document.getElementById('pGrid');
   if(!list.length){g.innerHTML='<div class="no-res"><span>😕</span><p>No shoes match your filters.<br>Try adjusting them.</p></div>';return;}
-  g.innerHTML=list.map(p=>`<div class="pc"><div class="pc-img"><img src="${p.img}" alt="${p.name}" loading="lazy">${p.badge?`<span class="pbdg ${p.bt}">${p.badge}</span>`:''}<button class="pc-qadd" onclick="szOpen('${p.id}')">Quick Add +</button></div><div class="pc-inf"><div class="pc-cat">${p.cat}</div><div class="pc-name">${p.name}</div><div class="pc-desc">${p.desc}</div><div class="pc-ft"><div class="pc-price">${p.mrp?`<s>₹${p.mrp.toLocaleString('en-IN')}</s>`:''} ₹${p.price.toLocaleString('en-IN')}</div><div class="pc-szs">${p.sizes.slice(0,4).map(s=>`<div class="pc-sz">${s}</div>`).join('')}${p.sizes.length>4?`<div class="pc-sz" style="font-size:.5rem">+${p.sizes.length-4}</div>`:''}</div></div></div></div>`).join('');
+  g.innerHTML=list.map(p=>{
+    const imgs=p.imgs||['assets/shoe1.jpg'];
+    const hasMult=imgs.length>1;
+    const imgsJson=JSON.stringify(imgs);
+    return `<div class="pc">
+      <div class="pc-img">
+        <img src="${imgs[0]}" alt="${p.name}" loading="lazy" id="pimg-${p.id}" style="transition:opacity .15s">
+        ${p.badge?`<span class="pbdg ${p.bt}">${p.badge}</span>`:''}
+        ${hasMult?`
+        <button class="car-btn car-prev" onclick="event.stopPropagation();carNav('${p.id}',-1,${imgsJson})">&#8249;</button>
+        <button class="car-btn car-next" onclick="event.stopPropagation();carNav('${p.id}',1,${imgsJson})">&#8250;</button>
+        <div class="car-dots" id="cdots-${p.id}">${imgs.map((_,i)=>`<span class="cdot${i===0?' on':''}" onclick="event.stopPropagation();carGo('${p.id}',${i},${imgsJson})"></span>`).join('')}</div>`:''}
+        <button class="pc-qadd" onclick="szOpen('${p.id}')">Quick Add +</button>
+      </div>
+      <div class="pc-inf">
+        <div class="pc-cat">${p.cat}</div>
+        <div class="pc-name">${p.name}</div>
+        <div class="pc-desc">${p.desc}</div>
+        <div class="pc-ft">
+          <div class="pc-price">${p.mrp?`<s>₹${p.mrp.toLocaleString('en-IN')}</s>`:''} ₹${p.price.toLocaleString('en-IN')}</div>
+          <div class="pc-szs">${p.sizes.slice(0,4).map(s=>`<div class="pc-sz">${s}</div>`).join('')}${p.sizes.length>4?`<div class="pc-sz" style="font-size:.5rem">+${p.sizes.length-4}</div>`:''}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══ CAROUSEL ══
+const carIdx={};
+function carNav(pid,dir,imgs){
+  const next=((carIdx[pid]||0)+dir+imgs.length)%imgs.length;
+  carGo(pid,next,imgs);
+}
+function carGo(pid,idx,imgs){
+  carIdx[pid]=idx;
+  const img=document.getElementById('pimg-'+pid);
+  if(img){img.style.opacity='0';setTimeout(()=>{img.src=imgs[idx];img.style.opacity='1';},150);}
+  const dots=document.getElementById('cdots-'+pid);
+  if(dots)dots.querySelectorAll('.cdot').forEach((d,i)=>d.classList.toggle('on',i===idx));
 }
 
 // ══ FILTERS ══
