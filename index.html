@@ -222,37 +222,19 @@ footer{background:#060606;padding:3rem}
 .succ-t{font-family:'Anton',sans-serif;font-size:1.8rem;letter-spacing:3px;color:var(--ac);margin-bottom:.5rem}
 .succ p{font-size:.85rem;color:var(--mu);line-height:1.7}
 
-/* MUSIC BUTTON */
+/* MUSIC ICON */
 .music-btn{
   position:fixed;bottom:1.8rem;right:1.8rem;z-index:800;
-  display:flex;align-items:center;gap:.55rem;
-  background:rgba(10,10,10,.82);backdrop-filter:blur(14px);
-  border:1px solid rgba(255,255,255,.12);
-  padding:.55rem 1rem .55rem .7rem;
-  cursor:pointer;transition:border-color .2s,background .2s;
-  color:var(--wh);font-family:'DM Sans',sans-serif;font-size:.7rem;font-weight:500;letter-spacing:1.5px;
-}
-.music-btn:hover{border-color:var(--ac-bd);background:rgba(20,20,20,.9)}
-.music-ic{
-  width:28px;height:28px;border-radius:50%;
-  background:var(--ac-dim);border:1px solid var(--ac-bd);
+  width:48px;height:48px;border-radius:50%;
+  background:rgba(10,10,10,.85);backdrop-filter:blur(14px);
+  border:1.5px solid rgba(255,255,255,.12);
   display:flex;align-items:center;justify-content:center;
-  font-size:.85rem;flex-shrink:0;
+  cursor:pointer;transition:border-color .25s,transform .2s;
+  font-size:1.35rem;
 }
-.music-btn.playing .music-ic{animation:spin 4s linear infinite}
-.music-bars{display:flex;align-items:flex-end;gap:2px;height:14px;margin-left:.1rem}
-.bar{width:3px;background:var(--ac);border-radius:2px;transition:height .2s}
-.music-btn.playing .bar:nth-child(1){animation:bar1 .8s ease-in-out infinite}
-.music-btn.playing .bar:nth-child(2){animation:bar2 .9s ease-in-out infinite}
-.music-btn.playing .bar:nth-child(3){animation:bar3 .7s ease-in-out infinite}
-.bar:nth-child(1){height:6px}
-.bar:nth-child(2){height:10px}
-.bar:nth-child(3){height:4px}
-
-@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-@keyframes bar1{0%,100%{height:4px}50%{height:12px}}
-@keyframes bar2{0%,100%{height:10px}50%{height:4px}}
-@keyframes bar3{0%,100%{height:6px}50%{height:14px}}
+.music-btn:hover{border-color:var(--ac);transform:scale(1.1)}
+.music-btn.playing{border-color:var(--ac);animation:pulse 2.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 10px rgba(200,255,0,.2)}50%{box-shadow:0 0 22px rgba(200,255,0,.45)}}
 
 /* ANIMATIONS */
 @keyframes fadeUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
@@ -461,11 +443,7 @@ const CFG = {
 </audio>
 
 <!-- MUSIC TOGGLE BUTTON -->
-<button class="music-btn" id="musicBtn" onclick="toggleMusic()" title="Toggle ambient music">
-  <div class="music-ic">🎵</div>
-  <span id="musicLbl">MUSIC</span>
-  <div class="music-bars"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
-</button>
+<button class="music-btn" id="musicBtn" onclick="toggleMusic()" title="Toggle music"></button>
 
 <!-- OVERLAYS -->
 <div class="ov" id="cartOv" onclick="cartClose()"></div>
@@ -626,17 +604,18 @@ function toggleMusic(){
 function startMusic(){
   audio.play().then(()=>{
     musicOn = true; musicStarted = true;
-    document.getElementById('musicBtn').classList.add('playing');
-    document.getElementById('musicLbl').textContent = 'PLAYING';
-    fadeVolume(0, 0.22, 1800);
+    const btn = document.getElementById('musicBtn');
+    btn.classList.add('playing');
+    btn.textContent = '🔊';
   }).catch(()=>{});
 }
 
 function pauseMusic(){
   fadeVolume(audio.volume, 0, 800, ()=>{ audio.pause(); });
   musicOn = false;
-  document.getElementById('musicBtn').classList.remove('playing');
-  document.getElementById('musicLbl').textContent = 'MUSIC';
+  const btn = document.getElementById('musicBtn');
+  btn.classList.remove('playing');
+  btn.textContent = '🔇';
 }
 
 function fadeVolume(from, to, duration, cb){
@@ -649,14 +628,17 @@ function fadeVolume(from, to, duration, cb){
   }, duration/steps);
 }
 
-// Auto-start music on first user interaction (bypasses browser autoplay block)
+// ── Auto-start on FIRST interaction (click, touch, scroll, keypress) ──
 function tryAutoMusic(){
-  if(!musicStarted && CFG.autoMusic !== false){
-    startMusic();
-    document.removeEventListener('click', tryAutoMusic);
-  }
+  if(musicStarted) return;
+  startMusic();
+  ['click','touchstart','keydown','scroll'].forEach(e=>
+    document.removeEventListener(e, tryAutoMusic)
+  );
 }
-document.addEventListener('click', tryAutoMusic);
+['click','touchstart','keydown','scroll'].forEach(e=>
+  document.addEventListener(e, tryAutoMusic, {once:true})
+);
 
 // ══ SCROLL REVEAL ══
 const ro=new IntersectionObserver(es=>{es.forEach((e,i)=>{if(e.isIntersecting){setTimeout(()=>e.target.classList.add('on'),i*100);ro.unobserve(e.target);}});},{threshold:.1});
@@ -673,6 +655,7 @@ document.getElementById('fTg').href=CFG.telegram;
 document.getElementById('fWa').href='https://wa.me/'+CFG.whatsapp;
 
 // ══ INIT ══
+document.getElementById('musicBtn').textContent = '🎵';
 renderProds();
 renderCart();
 </script>
